@@ -8,7 +8,7 @@ import type {
 } from "./types"
 
 const numberPattern =
-  /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?([a-zA-Zµμ]+)?$/
+  /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?([a-zA-Zµμ]+)?(\d+)?$/
 const operatorChars = new Set(["=", "+", "-", "*", "/", "^"])
 const punctuationChars = new Set(["(", ")", ",", ":"])
 const suffixScale: Record<string, number> = {
@@ -129,6 +129,14 @@ export function tokenizeSpice(
       raw += source[offset]
       advance(source[offset]!)
     }
+    // SPICE r-notation: digits after a scale suffix are the decimal
+    // fraction, e.g. 4u7 == 4.7u.
+    if (/[a-zA-Zµμ]/.test(raw)) {
+      while (isDigit(source[offset])) {
+        raw += source[offset]
+        advance(source[offset]!)
+      }
+    }
     return raw
   }
   // SPICE reads a numeric suffix as the longest known scale prefix and
@@ -145,12 +153,25 @@ export function tokenizeSpice(
     const numberMatch = raw.match(numberPattern)
     if (!numberMatch) return false
     const unitSuffix = numberMatch[1]
-    const numericRaw =
-      unitSuffix === undefined ? raw : raw.slice(0, -unitSuffix.length)
+    const fractionDigits = numberMatch[2]
+    let numericRaw = raw
+    if (fractionDigits !== undefined) {
+      numericRaw = numericRaw.slice(0, -fractionDigits.length)
+    }
+    if (unitSuffix !== undefined) {
+      numericRaw = numericRaw.slice(0, -unitSuffix.length)
+    }
     const baseValue = Number(numericRaw)
+    let scaledValue = baseValue
+    if (fractionDigits !== undefined && !Number.isNaN(baseValue)) {
+      const fraction =
+        Number(fractionDigits) / 10 ** fractionDigits.length
+      scaledValue =
+        Math.sign(baseValue || 1) * (Math.abs(baseValue) + fraction)
+    }
     const value =
       normalizeNumbers && !Number.isNaN(baseValue)
-        ? baseValue * resolveSuffixScale(unitSuffix)
+        ? scaledValue * resolveSuffixScale(unitSuffix)
         : null
     pushToken({
       type: "number",

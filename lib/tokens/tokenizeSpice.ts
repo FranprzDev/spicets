@@ -164,10 +164,8 @@ export function tokenizeSpice(
     const baseValue = Number(numericRaw)
     let scaledValue = baseValue
     if (fractionDigits !== undefined && !Number.isNaN(baseValue)) {
-      const fraction =
-        Number(fractionDigits) / 10 ** fractionDigits.length
-      scaledValue =
-        Math.sign(baseValue || 1) * (Math.abs(baseValue) + fraction)
+      const fraction = Number(fractionDigits) / 10 ** fractionDigits.length
+      scaledValue = Math.sign(baseValue || 1) * (Math.abs(baseValue) + fraction)
     }
     const value =
       normalizeNumbers && !Number.isNaN(baseValue)
